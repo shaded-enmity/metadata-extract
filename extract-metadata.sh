@@ -49,7 +49,7 @@ unpack_into ${INFILE} ${DIR}
 echo '=> Directory structure'
 tree ${DIR}
 
-unset -xe
+set +xe
 
 echo '=> '
 for FL in $(find ${DIR}/); do
