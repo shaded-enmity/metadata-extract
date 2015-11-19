@@ -1,0 +1,10 @@
+#!/usr/bin/bash
+
+eval LNK=$(echo "\$${DB_LINK^^}_PORT")
+LNKDATA=($(echo $LNK | sed -e 's/^\w*:\/\/\(.*\):\(.*\)/\1 \2/g'))
+export DB_HOST=${LNKDATA[0]}
+export DB_PORT=${LNKDATA[1]}
+export DB_NAME=$DB_USER
+
+python manage.py migrate
+python manage.py runserver 0.0.0.0:8080
