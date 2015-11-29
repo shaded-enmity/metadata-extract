@@ -1,0 +1,76 @@
+#!/usr/bin/python
+import redhawk.common.selector as S
+import redhawk.common.get_ast as G
+import redhawk.utils.util as U
+import os, subprocess, sys, pprint
+
+wanted = ['define_macros',
+          'depends',
+          'export_symbols',
+          'extra_compile_args',
+          'extra_link_args',
+          'extra_objects',
+          'include_dirs',
+          'language',
+          'libraries',
+          'library_dirs',
+          'name',
+          'runtime_library_dirs',
+          'sources',
+          'swig_opts',
+          'undef_macros'
+]
+
+def get_inject_code():
+  return ['def ___setup(**kw):\n',
+          '  wanted = ' + str(wanted) + '\n',
+          '  import json\n', 
+          '  exts = dict([(k, v) for k, v in dict(kw).iteritems() if k in ["ext_modules"]])["ext_modules"]\n',
+          '  newexts = []\n',
+          '  for v in exts:',
+          '    newexts.append(dict([(attr, getattr(v, attr)) for attr in wanted]))\n',
+          '  del(kw["cmdclass"])\n',
+          '  kw["ext_modules"] = newexts\n',
+          '  print(json.dumps(kw, indent=3))\n\n']
+
+def process(target):
+  target_dir = target
+  setup = None
+  for root, _, files in os.walk(target_dir):
+    for f in files:
+      if f == 'setup.py':
+        setup = os.path.join(root, f)
+  if not setup:
+    print("=> unable to find setup.py")
+    sys.exit(1)
+
+  asts = [G.GetLAST(x, database = None) for x in [setup]]
+  selector = S.S(node_type = 'CallFunction',
+               function = lambda x: x.function.name == 'setup')
+  variables = U.Concat(selector.Apply(asts))
+  callpos = variables[0].position
+
+  with open(setup, 'r') as original:
+    orig_lines = original.readlines()
+    new_lines = ''.join(
+        orig_lines[:callpos.GetLine() - 2] 
+        + get_inject_code() 
+        + [orig_lines[callpos.GetLine() - 1].replace('setup', '___setup')] 
+        + orig_lines[callpos.GetLine():]
+    )
+
+    with open(setup + '.mock', 'w') as new:
+      new.write(new_lines)
+
+    cwd = os.getcwd()
+    os.chdir(os.path.dirname(setup))
+    lines = subprocess.check_output(
+        ['python', setup + '.mock']
+    )
+    print(lines.strip())
+    os.chdir(cwd)
+    #os.remove(setup + '.mock')
+
+  sys.exit(0)
+  
+process(sys.argv[1])
