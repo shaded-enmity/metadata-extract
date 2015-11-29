@@ -25,11 +25,13 @@ def get_inject_code():
   return ['def ___setup(**kw):\n',
           '  wanted = ' + str(wanted) + '\n',
           '  import json\n', 
-          '  exts = dict([(k, v) for k, v in dict(kw).iteritems() if k in ["ext_modules"]])["ext_modules"]\n',
+          '  exts = dict([(k, v) for k, v in dict(kw).iteritems() if k in ["ext_modules"]])\n',
           '  newexts = []\n',
-          '  for v in exts:',
-          '    newexts.append(dict([(attr, getattr(v, attr)) for attr in wanted]))\n',
-          '  del(kw["cmdclass"])\n',
+          '  if "ext_modules" in exts:\n',
+          '    for v in exts["ext_modules"]:\n',
+          '      newexts.append(dict([(attr, getattr(v, attr)) for attr in wanted]))\n',
+          '  if "cmdclass" in kw:\n',
+          '    del(kw["cmdclass"])\n',
           '  kw["ext_modules"] = newexts\n',
           '  print(json.dumps(kw, indent=3))\n\n']
 
@@ -53,7 +55,7 @@ def process(target):
   with open(setup, 'r') as original:
     orig_lines = original.readlines()
     new_lines = ''.join(
-        orig_lines[:callpos.GetLine() - 2] 
+        orig_lines[:callpos.GetLine() - 1] 
         + get_inject_code() 
         + [orig_lines[callpos.GetLine() - 1].replace('setup', '___setup')] 
         + orig_lines[callpos.GetLine():]
